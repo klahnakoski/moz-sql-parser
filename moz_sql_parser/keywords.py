@@ -1,7 +1,7 @@
 from moz_sql_parser.utils import *
 
 # SQL CONSTANTS
-NULL = Keyword("null", caseless=True).addParseAction(lambda: "null")
+NULL = Keyword("null", caseless=True).addParseAction(lambda: nullValue)
 TRUE = Keyword("true", caseless=True).addParseAction(lambda: True)
 FALSE = Keyword("false", caseless=True).addParseAction(lambda: False)
 NOCASE = Keyword("nocase", caseless=True)
@@ -13,6 +13,8 @@ AS = Keyword("as", caseless=True).suppress()
 ALL = Keyword("all", caseless=True)
 BY = Keyword("by", caseless=True).suppress()
 CAST = Keyword("cast", caseless=True)
+CONSTRAINT = Keyword("constraint", caseless=True).suppress()
+CREATE = Keyword("create", caseless=True).suppress()
 CROSS = Keyword("cross", caseless=True)
 DISTINCT = Keyword("distinct", caseless=True)
 FROM = Keyword("from", caseless=True).suppress()
@@ -34,6 +36,7 @@ PARTITION = Keyword("partition", caseless=True).suppress()
 RIGHT = Keyword("right", caseless=True)
 RLIKE = Keyword("rlike", caseless=True)
 SELECT = Keyword("select", caseless=True).suppress()
+TABLE = Keyword("table", caseless=True).suppress()
 THEN = Keyword("then", caseless=True).suppress()
 TOP = Keyword("top", caseless=True).suppress()
 UNION = Keyword("union", caseless=True)
@@ -42,6 +45,15 @@ WHEN = Keyword("when", caseless=True).suppress()
 WHERE = Keyword("where", caseless=True).suppress()
 WITH = Keyword("with", caseless=True).suppress()
 WITHIN = Keyword("within", caseless=True).suppress()
+PRIMARY = Keyword("primary", caseless=True).suppress()
+FOREIGN = Keyword("foreign", caseless=True).suppress()
+KEY = Keyword("key", caseless=True).suppress()
+UNIQUE = Keyword("unique", caseless=True).suppress()
+INDEX = Keyword("index", caseless=True).suppress()
+REFERENCES = Keyword("references", caseless=True).suppress()
+
+PRIMARY_KEY = Group(PRIMARY + KEY).set_parser_name("primary_key")
+FOREIGN_KEY = Group(FOREIGN + KEY).set_parser_name("foreign_key")
 
 # SIMPLE OPERATORS
 CASTING = Literal("::").set_parser_name("concat")
@@ -74,6 +86,7 @@ NOT = Keyword("not", caseless=True)
 OR = Keyword("or", caseless=True)
 
 # COMPOUND KEYWORDS
+CREATE_TABLE = Group(CREATE + TABLE).set_parser_name("create_table")
 CROSS_JOIN = Group(CROSS + JOIN).set_parser_name("cross join")
 FULL_JOIN = Group(FULL + JOIN).set_parser_name("full join")
 FULL_OUTER_JOIN = Group(FULL + OUTER + JOIN).set_parser_name("full outer join")
@@ -111,6 +124,9 @@ RESERVED = MatchFirst([
     CASE,
     CAST,
     COLLATE,
+    CONSTRAINT,
+    CREATE_TABLE,
+    CREATE,
     CROSS_JOIN,
     CROSS,
     DESC,
@@ -118,6 +134,8 @@ RESERVED = MatchFirst([
     ELSE,
     END,
     FALSE,
+    FOREIGN_KEY,
+    FOREIGN,
     FROM,
     FULL_JOIN,
     FULL_OUTER_JOIN,
@@ -126,12 +144,14 @@ RESERVED = MatchFirst([
     GROUP,
     HAVING,
     IN,
+    INDEX,
     INNER_JOIN,
     INNER,
     INTERVAL,
     IS_NOT,
     IS,
     JOIN,
+    KEY,
     LEFT_JOIN,
     LEFT_OUTER_JOIN,
     LEFT,
@@ -153,6 +173,9 @@ RESERVED = MatchFirst([
     OVER,
     PARTITION_BY,
     PARTITION,
+    PRIMARY_KEY,
+    PRIMARY,
+    REFERENCES,
     RIGHT_JOIN,
     RIGHT_OUTER_JOIN,
     RIGHT,
@@ -163,6 +186,7 @@ RESERVED = MatchFirst([
     TRUE,
     UNION_ALL,
     UNION,
+    UNIQUE,
     USING,
     WHEN,
     WHERE,

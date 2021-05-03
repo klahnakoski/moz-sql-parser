@@ -37,6 +37,8 @@ ident = Combine(
 ).set_parser_name("identifier")
 
 # EXPRESSIONS
+column_definition = Forward()
+column_type = Forward()
 
 # CASE
 case = (
@@ -229,5 +231,101 @@ statement << (
     + Group(ordered_sql)("query")
 ).addParseAction(to_statement)
 
-SQLParser = statement
+createStmt = Forward()
+
+BigQuery_STRUCT = (
+    Keyword("struct", caseless=True)("op") +
+    Literal("<").suppress() +
+    delimitedList(column_definition)("params") +
+    Literal(">").suppress()
+).addParseAction(to_json_call)
+
+BigQuery_ARREY = (
+    Keyword("array", caseless=True)("op") +
+    Literal("<").suppress() +
+    delimitedList(column_type)("params") +
+    Literal(">").suppress()
+).addParseAction(to_json_call)
+
+column_type << (
+    BigQuery_STRUCT |
+    BigQuery_ARREY |
+    Group(ident("op") + Optional(LB + delimitedList(intNum)("params") + RB)).addParseAction(to_json_call)
+)
+
+column_def_references = (
+    REFERENCES + ident("table") + LB + delimitedList(ident)("columns") + RB
+)("references")
+
+column_def_check = (
+    Keyword("check", caseless=True).suppress() +    LB + expr + RB
+)
+
+column_def_default = (
+    Keyword("default", caseless=True)("op") +
+    expr("params")
+).addParseAction(to_json_call)
+
+column_options = ZeroOrMore(
+    Keyword("not null", caseless=True)
+    | NULL.copy().addParseAction( lambda t: "nullable" )
+    | Keyword("unique", caseless=True)
+    | Keyword("primary key", caseless=True)
+    | column_def_references
+    | column_def_check("check")
+    | column_def_default
+).set_parser_name("column_options")
+
+column_definition << Group(
+        ident("name").addParseAction(lambda t: t[0].lower()) +
+        column_type("type") +
+        Optional(column_options)("option")
+    ).set_parser_name("column_definition")
+
+# MySQL's index_type := Using + ( "BTREE" | "HASH" )
+index_type = Optional(
+    USING + ident("index_type")
+)
+
+index_column_names = (LB + delimitedList(ident("columns")) + RB)
+
+column_def_foreign_key = (
+    FOREIGN_KEY + Optional(ident("index_name") + index_column_names + column_def_references)
+)
+
+index_options = ZeroOrMore(
+    ident
+)("table_constraint_options")
+
+
+table_constraint_definition = (
+        Optional(CONSTRAINT + ident("name"))
+        + (
+                (PRIMARY_KEY + index_type + index_column_names + index_options)("primary_key")
+                | (UNIQUE + Optional(INDEX | KEY) + Optional(ident("index_name")) + index_type + index_column_names + index_options)("unique")
+                | ((INDEX | KEY) + Optional(ident("index_name")) + index_type + index_column_names + index_options)("index")
+                | column_def_check("check")
+                | column_def_foreign_key("foreign_key")
+        )
+    )
+
+
+table_element = (
+        column_definition("columns")
+        | table_constraint_definition("constraint")
+)
+
+createStmt << (
+    CREATE_TABLE +
+    (
+        ident("name") +
+        Optional(LB + delimitedList(table_element) + RB) +
+        Optional(
+            AS.suppress() +
+            infixNotation( statement, [] )
+        )("select_statement")
+    )("create table")
+)
+
+SQLParser = statement | createStmt
 engine.release()

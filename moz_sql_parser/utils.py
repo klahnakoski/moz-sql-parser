@@ -11,7 +11,7 @@ from __future__ import absolute_import, division, unicode_literals
 
 import ast
 
-from mo_dots import is_data, is_null
+from mo_dots import is_data, is_null, NullType
 from mo_future import text, number_types, binary_type
 from mo_logs import Log
 
@@ -22,12 +22,39 @@ from mo_parsing.utils import is_number, listwrap, alphanums
 IDENT_CHAR = alphanums + "@_$"
 
 
+class AvoidNull(NullType):
+    def __str__(self):
+        return "None"
+
+    def __repr__(self):
+        return "NullValue"
+
+
+avoidNull = AvoidNull()
+
+
+class NullValue(str):
+    pass
+
+nullValue = NullValue()
+
+
+def is_null_value(token):
+    return token is nullValue
+
+
+def is_scrub(token):
+    return isinstance(token, AvoidNull) or isinstance(token, NullValue) or not is_null(token)
+
+
 def scrub(result):
-    if result == None:
+    if isinstance(result, AvoidNull):
+        return result
+    elif isinstance(result, NullValue):
+        return avoidNull
+    elif result == None:
         return None
     elif isinstance(result, text):
-        if result == "null":
-            return None
         return result
     elif isinstance(result, binary_type):
         return result.decode("utf8")
@@ -47,7 +74,8 @@ def scrub(result):
     else:
         # ATTEMPT A DICT INTERPRETATION
         kv_pairs = list(result.items())
-        output = {k: vv for k, v in kv_pairs for vv in [scrub(v)] if not is_null(vv)}
+        output = {k: vv for k, v in kv_pairs for vv in [scrub(v)] if is_scrub(vv)}
+
         if isinstance(result, dict):
             return output
         elif output:
@@ -92,6 +120,7 @@ def scrub_literal(candidate):
     return candidate
 
 
+
 def _chunk(values, size):
     acc = []
     for v in values:
@@ -121,22 +150,22 @@ def to_json_operator(tokens):
         op = op.type.parser_name
     op = binary_ops.get(op, op)
     if op == "eq":
-        if tokens[2] == "null":
+        if is_null_value(tokens[2]):
             return {"missing": tokens[0]}
-        elif tokens[0] == "null":
+        elif is_null_value(tokens[0]):
             return {"missing": tokens[2]}
     elif op == "neq":
-        if tokens[2] == "null":
+        if is_null_value(tokens[2]):
             return {"exists": tokens[0]}
-        elif tokens[0] == "null":
+        elif is_null_value(tokens[0]):
             return {"exists": tokens[2]}
     elif op == "is":
-        if tokens[2] == "null":
+        if is_null_value(tokens[2]):
             return {"missing": tokens[0]}
         else:
             return {"exists": tokens[0]}
     elif op == "is_not":
-        if tokens[2] == "null":
+        if is_null_value(tokens[2]):
             return {"exists": tokens[0]}
         else:
             return {"missing": tokens[0]}
@@ -209,7 +238,7 @@ def to_json_call(tokens):
     op = binary_ops.get(op, op)
 
     params = scrub(tokens["params"])
-    if not params:
+    if not params and not isinstance(params, AvoidNull):
         params = {}
     if scrub(tokens["ignore_nulls"]):
         ignore_nulls = True
